@@ -6,17 +6,29 @@ import session from 'express-session';
 import MongoStore from 'connect-mongo';
 import { connectDB } from './config/db.js';
 
+// Route imports
+import authRoutes from './routes/authRoutes.js';
+import categoryRoutes from './routes/categoryRoutes.js';
+import menuItemRoutes from './routes/menuItemRoutes.js';
+import orderRoutes from './routes/orderRoutes.js';
+
+// Middleware imports
+import { notFound, errorHandler } from './middleware/errorHandler.js';
+
 // Load environment variables
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Middleware
-app.use(morgan('dev'));
+// Logging & Body Parsers
+if (process.env.NODE_ENV !== 'test') {
+  app.use(morgan('dev'));
+}
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// CORS configuration for session cookies
 app.use(
   cors({
     origin: process.env.CLIENT_URL || 'http://localhost:3000',
@@ -24,11 +36,12 @@ app.use(
   })
 );
 
-// Session setup
+// Session setup with MongoStore
 if (process.env.MONGODB_URI) {
   app.use(
     session({
-      secret: process.env.SESSION_SECRET || 'restaurant_secret_key',
+      name: 'restaurant.sid',
+      secret: process.env.SESSION_SECRET || 'restaurant_secret_key_2025',
       resave: false,
       saveUninitialized: false,
       store: MongoStore.create({
@@ -52,20 +65,31 @@ app.get('/api/health', (req, res) => {
     status: 'ok',
     timestamp: new Date().toISOString(),
     service: 'Restaurant Order Management API',
+    uptime: process.uptime(),
   });
 });
+
+// API Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/categories', categoryRoutes);
+app.use('/api/menu-items', menuItemRoutes);
+app.use('/api/orders', orderRoutes);
+
+// Error Handling Middleware
+app.use(notFound);
+app.use(errorHandler);
 
 // Start Server
 if (process.env.NODE_ENV !== 'test') {
   if (process.env.MONGODB_URI) {
     connectDB().then(() => {
       app.listen(PORT, () => {
-        console.log(`Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
+        console.log(`\x1b[32m✔ Server running in ${process.env.NODE_ENV || 'development'} mode on http://localhost:${PORT}\x1b[0m`);
       });
     });
   } else {
     app.listen(PORT, () => {
-      console.log(`Server running without DB connection on port ${PORT}`);
+      console.log(`\x1b[33mServer running without MongoDB URI on port ${PORT}\x1b[0m`);
     });
   }
 }
